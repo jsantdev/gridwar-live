@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Centro de Mando · Guerra Táctica TikTok Live</title>
+    <!-- Google Fonts & FontAwesome -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=Rajdhani:wght@600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Rajdhani", "Segoe UI", Arial, sans-serif;
+        color: #f1f5f9;
+        background: transparent;
+        font-synthesis: none;
+        --blue: #0284c7;
+        --blue-bright: #38bdf8;
+        --pink: #e11d48;
+        --pink-bright: #fb7185;
+        --gold: #f59e0b;
+        --panel: rgba(10, 15, 26, 0.94);
+        --line: rgba(255, 255, 255, 0.12);
+        --muted: #94a3b8;
+      }
+      * { box-sizing: border-box; user-select: none; }
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+      body { display: grid; place-items: center; background: transparent; }
+
+      /* Aspecto 9:16 Optimizado para OBS / TikTok Live Studio */
+      .overlay {
+        position: relative;
+        width: min(100vw, 56.25vh);
+        height: min(100vh, 177.78vw);
+        min-height: 0;
+        padding: clamp(10px, 2vh, 24px);
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+        gap: clamp(6px, 1.2vh, 14px);
+        background: var(--panel);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        box-shadow: 0 0 50px rgba(0, 0, 0, 0.85);
+      }
+
+      /* Canvas para renderizar el desplazamiento flotante de tropas */
+      #troop-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 99;
+      }
+
+      /* Header Táctico - Centro de Mando */
+      .heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+      .eyebrow { margin: 0 0 2px; color: var(--blue-bright); font-size: clamp(9px, 1.1vw, 13px); font-weight: 800; font-family: 'Orbitron', sans-serif; letter-spacing: .18em; text-transform: uppercase; }
+      h1 { margin: 0; font-size: clamp(15px, 2.6vw, 30px); font-family: 'Orbitron', sans-serif; font-weight: 900; line-height: 1; letter-spacing: .04em; text-transform: uppercase; color: #fff; }
+
+      .head-actions { display: flex; align-items: center; gap: 8px; }
+
+      /* Botón FOLLOW Táctico */
+      .btn-follow {
+        background: linear-gradient(135deg, #0284c7, #0369a1);
+        color: #fff;
+        font-family: 'Orbitron', sans-serif;
+        font-weight: 800;
+        font-size: clamp(9px, 1.1vw, 13px);
+        padding: 5px 12px;
+        border-radius: 6px;
+        border: 1px solid rgba(56, 189, 248, 0.4);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 0 12px rgba(2, 132, 199, 0.4);
+        animation: followGlow 3s infinite;
+        cursor: pointer;
+      }
+      @keyframes followGlow {
+        0%, 100% { box-shadow: 0 0 8px rgba(2, 132, 199, 0.3); }
+        50% { box-shadow: 0 0 18px rgba(56, 189, 248, 0.7); }
+      }
+
+      .connection {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: rgba(15, 23, 42, 0.9);
+        color: var(--muted);
+        font-size: clamp(8px, 1vw, 12px);
+        font-family: 'Orbitron', sans-serif;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .connection::before { width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; content: ""; }
+      .connection[data-state="connected"]::before { background: #10b981; box-shadow: 0 0 8px #10b981; }
+      .connection[data-state="disconnected"]::before { background: #ef4444; }
+
+      /* Tarjetas de Países y Moral */
+      .countries { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(6px, 1.2vw, 14px); }
+      .country, .leader-panel {
+        min-width: 0;
+        padding: clamp(8px, 1.2vw, 16px);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.85);
+        box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
+      }
+      .country { border-top: 3px solid var(--team); }
+      .country-heading { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+      .country-name {
+        overflow: hidden;
+        color: var(--team);
+        font-family: 'Orbitron', sans-serif;
+        font-size: clamp(12px, 1.7vw, 20px);
+        font-weight: 900;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .points { color: #fff; font-family: 'Orbitron', sans-serif; font-size: clamp(11px, 1.5vw, 17px); font-weight: 800; white-space: nowrap; }
+      .capital { overflow: hidden; margin-top: 2px; color: var(--muted); font-size: clamp(9px, 1.1vw, 13px); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; letter-spacing: 0.05em; }
+      
+      .morale-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-top: 8px; color: var(--muted); font-size: clamp(9px, 1.1vw, 13px); font-weight: 700; }
+      .morale-status { font-family: 'Orbitron', sans-serif; font-size: clamp(8px, 1vw, 11px); color: #fff; }
+      .morale-track { height: clamp(6px, .7vw, 8px); margin-top: 4px; overflow: hidden; border-radius: 4px; background: rgba(255, 255, 255, 0.08); }
+      .morale-fill { width: 0; height: 100%; border-radius: inherit; background: var(--team); transition: width .45s ease; }
+
+      /* Grilla Táctica 5x5 */
+      .board-area { display: grid; place-items: center; min-height: 0; }
+      .board {
+        width: min(100%, 82vh);
+        max-height: 100%;
+        aspect-ratio: 1;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-rows: repeat(5, minmax(0, 1fr));
+        gap: clamp(3px, .6vw, 8px);
+        padding: 8px;
+        background: rgba(2, 6, 23, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 14px;
+        box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
+      }
+      .cell {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 0;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: clamp(5px, .8vw, 10px);
+        background: rgba(15, 23, 42, 0.85);
+        transition: background-color .25s, border-color .25s, transform .25s;
+        overflow: hidden;
+      }
+      .cell[data-owner="A"] { border-color: rgba(56, 189, 248, 0.7); background: rgba(14, 165, 233, 0.15); }
+      .cell[data-owner="B"] { border-color: rgba(251, 113, 133, 0.7); background: rgba(225, 29, 72, 0.15); }
+      .cell-index { position: absolute; top: 3px; left: 4px; color: rgba(255, 255, 255, 0.35); font-size: clamp(7px, .9vw, 11px); font-family: monospace; }
+      .cell[data-capital]:not([data-capital=""])::after { content: "CAP " attr(data-capital); position: absolute; top: 3px; right: 4px; color: var(--gold); font-size: clamp(6px, .75vw, 9px); font-family: 'Orbitron', sans-serif; font-weight: 800; }
+      .troop-count { position: absolute; right: 4px; bottom: 2px; color: #fff; font-family: 'Orbitron', sans-serif; font-size: clamp(7px, .9vw, 11px); font-weight: 800; }
+      
+      /* Render de Tropas */
+      .troops-container {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 3px;
+        align-items: center;
+        justify-content: center;
+      }
+      .troop-dot {
+        width: clamp(6px, 1.1vw, 11px);
+        height: clamp(6px, 1.1vw, 11px);
+        border-radius: 50%;
+        background: var(--team-color);
+        box-shadow: 0 0 6px var(--team-color);
+        animation: troopPulse 2s infinite ease-in-out;
+      }
+      @keyframes troopPulse {
+        0%, 100% { transform: scale(0.85); opacity: 0.8; }
+        50% { transform: scale(1.2); opacity: 1; }
+      }
+
+      .cell.impact { animation: impact .45s ease-out; }
+      .cell.conquest { animation: conquest .8s ease-out; }
+      .cell.fortified { animation: fortified .8s ease-out; }
+      .cell.draw { animation: draw .9s ease-out; }
+      @keyframes impact { 50% { transform: scale(1.06); box-shadow: 0 0 18px #fff; } }
+      @keyframes conquest { 50% { transform: scale(1.08); box-shadow: 0 0 22px var(--team); } }
+      @keyframes fortified { 50% { box-shadow: 0 0 18px var(--team); } }
+      @keyframes draw { 50% { transform: scale(1.1); border-color: #fff; box-shadow: 0 0 24px #a855f7; } }
+
+      /* Líderes / Rangos Militares */
+      .leaders { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(6px, 1.2vw, 14px); }
+      .leader-panel { border-bottom: 3px solid var(--team); }
+      .leader-title { display: flex; align-items: center; justify-content: space-between; margin: 0 0 6px; color: var(--team); font-family: 'Orbitron', sans-serif; font-size: clamp(10px, 1.2vw, 15px); font-weight: 800; text-transform: uppercase; }
+      .leader-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+      .leader { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px; min-width: 0; padding: 4px 6px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; background: rgba(2, 6, 23, 0.7); }
+      .leader-badge { font-size: clamp(10px, 1.2vw, 15px); }
+      .leader-info { display: grid; min-width: 0; }
+      .leader-rank { color: var(--muted); font-size: clamp(7px, .85vw, 10px); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+      .leader-name { overflow: hidden; font-size: clamp(10px, 1.2vw, 14px); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; color: #f8fafc; }
+      .leader-score { color: var(--team); font-family: 'Orbitron', sans-serif; font-size: clamp(10px, 1.2vw, 14px); font-weight: 800; }
+      .empty { color: var(--muted); font-size: clamp(9px, 1.1vw, 12px); padding: 4px 0; }
+      
+      .test-controls { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+      .test-controls button { min-width: 0; padding: 5px 3px; border: 1px solid var(--line); border-radius: 6px; color: #f1f5f9; background: rgba(30, 41, 59, .9); font: 700 clamp(8px, 1vw, 11px) "Rajdhani", sans-serif; cursor: pointer; }
+      .test-controls button:hover, .test-controls button:focus-visible { border-color: var(--blue-bright); background: rgba(14, 165, 233, .3); outline: none; }
+      .test-controls-title { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: clamp(8px, .85vw, 10px); font-weight: 800; text-align: center; text-transform: uppercase; letter-spacing: 0.08em; }
+      .footer { color: rgba(255, 255, 255, 0.55); font-family: 'Orbitron', sans-serif; font-size: clamp(8px, 1vw, 11px); font-weight: 700; letter-spacing: .1em; text-align: center; text-transform: uppercase; }
+
+      @media (max-aspect-ratio: 9/16) {
+        .overlay { width: 100vw; height: 100vh; border-radius: 0; }
+        .board { width: min(100%, 82vw); }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="overlay" id="overlay">
+      <!-- Canvas de animación de tropas -->
+      <canvas id="troop-canvas"></canvas>
+
+      <header class="heading">
+        <div>
+          <p class="eyebrow">CENTRO DE MANDO 1V1</p>
+          <h1>OPERACIÓN 5×5</h1>
+        </div>
+        <div class="head-actions">
+          <button class="btn-follow" onclick="alert('¡Gracias por unirte al Centro de Mando!')">
+            <i class="fa-solid fa-user-plus"></i> FOLLOW
+          </button>
+          <div id="connection" class="connection" data-state="connecting" role="status">Conectando</div>
+        </div>
+      </header>
+
+      <section id="countries" class="countries" aria-label="Moral y puntos por país"></section>
+
+      <section class="board-area" aria-label="Tablero de guerra">
+        <div id="board" class="board" role="grid" aria-label="Tablero táctico de 25 posiciones"></div>
+      </section>
+
+      <section id="leaders" class="leaders" aria-label="Top tres de miembros por país"></section>
+
+      <section class="test-controls" aria-label="Pruebas tácticas">
+        <h2 class="test-controls-title">Simulación Táctica</h2>
+        <button type="button" data-test="mobilization">Traslado</button>
+        <button type="button" data-test="invasion">Invasión</button>
+        <button type="button" data-test="attack">Ataque</button>
+        <button type="button" data-test="draw">Empate</button>
+      </section>
+      <footer class="footer">Transmite apoyo y coordina la defensa</footer>
+    </main>
+
+    <script>
+      const connection = document.querySelector('#connection');
+      const countriesElement = document.querySelector('#countries');
+      const boardElement = document.querySelector('#board');
+      const leadersElement = document.querySelector('#leaders');
+      const testControls = document.querySelector('.test-controls');
+      let latestGameState = null;
+      const effectTimers = new Map();
+
+      // Configuración Canvas
+      const overlayElement = document.querySelector('#overlay');
+      const canvas = document.querySelector('#troop-canvas');
+      const ctx = canvas.getContext('2d');
+      let activeParticles = [];
+
+      function resizeCanvas() {
+        const rect = overlayElement.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+      }
+      window.addEventListener('resize', resizeCanvas);
+      resizeCanvas();
+
+      // Colores de los bandos (Azul Táctico / Carmín Militar)
+      const teamColors = { A: '#0284c7', B: '#e11d48' };
+      const teamFlags = { A: '🌐', B: '⚔️' };
+
+      // Rangos Militares Oficiales
+      const militaryRanks = [
+        { title: 'Líder Supremo', icon: '👑' },
+        { title: 'General de División', icon: '🎖️' },
+        { title: 'Capitán de Vanguardia', icon: '⚔️' }
+      ];
+
+      function setConnection(state, label) {
+        connection.dataset.state = state;
+        connection.textContent = label;
+      }
+
+      function getMoraleStatus(morale) {
+        if (morale >= 80) return { label: 'DOMINIO TOTAL', emoji: '🔥' };
+        if (morale >= 60) return { label: 'ESTABLE', emoji: '🛡️' };
+        if (morale >= 35) return { label: 'BAJO PRESIÓN', emoji: '⚠️' };
+        return { label: 'PÁNICO TÁCTICO', emoji: '🚨' };
+      }
+
+      function renderCountries(countries) {
+        countriesElement.replaceChildren();
+        countries.forEach((country) => {
+          const card = document.createElement('article');
+          card.className = 'country';
+          const teamColor = teamColors[country.id] || '#94a3b8';
+          card.style.setProperty('--team', teamColor);
+
+          const heading = document.createElement('div');
+          heading.className = 'country-heading';
+          
+          const name = document.createElement('div');
+          name.className = 'country-name';
+          const flag = teamFlags[country.id] || '🏴';
+          name.innerHTML = `<span>${flag}</span> <span>${country.name}</span>`;
+
+          const points = document.createElement('div');
+          points.className = 'points';
+          points.textContent = `${country.points || 0} pts`;
+          heading.append(name, points);
+
+          const capital = document.createElement('div');
+          capital.className = 'capital';
+          capital.textContent = country.capital ? `BASE CAPITAL: C-0${country.capital}` : 'CAPITAL NO ASIGNADA';
+
+          const moraleRow = document.createElement('div');
+          moraleRow.className = 'morale-row';
+          
+          const moraleLabel = document.createElement('span');
+          moraleLabel.textContent = 'MORAL OPERATIVA';
+          
+          const morale = Math.max(0, Math.min(100, Number(country.morale) || 0));
+          const status = getMoraleStatus(morale);
+          const moraleValue = document.createElement('span');
+          moraleValue.className = 'morale-status';
+          moraleValue.innerHTML = `${status.emoji} ${morale}% (${status.label})`;
+          
+          moraleRow.append(moraleLabel, moraleValue);
+
+          const track = document.createElement('div');
+          track.className = 'morale-track';
+          const fill = document.createElement('div');
+          fill.className = 'morale-fill';
+          fill.style.width = `${morale}%`;
+          track.append(fill);
+
+          card.append(heading, capital, moraleRow, track);
+          countriesElement.append(card);
+        });
+      }
+
+      function renderBoard(board) {
+        boardElement.replaceChildren();
+        board.forEach((cell) => {
+          const tile = document.createElement('div');
+          tile.className = 'cell';
+          tile.dataset.index = cell.index;
+          tile.dataset.owner = cell.owner || '';
+          tile.dataset.capital = cell.capitalFor || '';
+          const teamColor = teamColors[cell.owner] || 'transparent';
+          tile.style.setProperty('--team', teamColor);
+
+          const index = document.createElement('span');
+          index.className = 'cell-index';
+          index.textContent = String(cell.index + 1).padStart(2, '0');
+          tile.append(index);
+
+          // Render de Tropas
+          const troopCount = Math.min(Number(cell.points) || 0, 4);
+          if (troopCount > 0 && cell.owner) {
+            const troopsContainer = document.createElement('div');
+            troopsContainer.className = 'troops-container';
+            for (let i = 0; i < troopCount; i++) {
+              const dot = document.createElement('div');
+              dot.className = 'troop-dot';
+              dot.style.setProperty('--team-color', teamColor);
+              troopsContainer.append(dot);
+            }
+            tile.append(troopsContainer);
+            const troopCountLabel = document.createElement('span');
+            troopCountLabel.className = 'troop-count';
+            troopCountLabel.textContent = String(cell.points);
+            tile.append(troopCountLabel);
+          }
+
+          boardElement.append(tile);
+        });
+      }
+
+      function showTestEffect(index, effect) {
+        const tile = boardElement.children[index];
+        if (!tile) return;
+        for (const className of ['impact', 'conquest', 'draw', 'fortified']) tile.classList.remove(className);
+        tile.classList.add(effect);
+        if (effectTimers.has(index)) clearTimeout(effectTimers.get(index));
+        effectTimers.set(index, setTimeout(() => {
+          tile.classList.remove(effect);
+          effectTimers.delete(index);
+        }, 1000));
+      }
+
+      function nextRouteCell(sourceIndex, targetIndex) {
+        const sourceRow = Math.floor(sourceIndex / 5);
+        const sourceColumn = sourceIndex % 5;
+        const targetRow = Math.floor(targetIndex / 5);
+        const targetColumn = targetIndex % 5;
+        if (sourceRow !== targetRow) return sourceIndex + (targetRow > sourceRow ? 5 : -5);
+        if (sourceColumn !== targetColumn) return sourceIndex + (targetColumn > sourceColumn ? 1 : -1);
+        return sourceIndex;
+      }
+
+      function playResult(result, state) {
+        if (!result || typeof result !== 'object') return;
+
+        if (result.type === 'automatic-advance' && Array.isArray(result.outcomes)) {
+          result.outcomes.forEach((outcome) => playResult(outcome, state));
+          return;
+        }
+
+        const source = result.source;
+        const target = result.target;
+        const hasRoute = Number.isInteger(source) && Number.isInteger(target)
+          && source >= 0 && source < 25 && target >= 0 && target < 25 && source !== target;
+        const effects = Array.isArray(result.effects) ? result.effects : [];
+        const countryId = result.countryId || (hasRoute ? boardElement.children[source]?.dataset.owner : '');
+        const sent = Number.isFinite(Number(result.sent)) ? Number(result.sent) : 6;
+
+        if (hasRoute && (result.type === 'mobilization' || result.type === 'move'
+          || result.type === 'attack' || result.type === 'invasion'
+          || effects.includes('movement') || effects.includes('attack') || effects.includes('conquest'))) {
+          spawnTroops(source, target, countryId || 'A', sent);
+        }
+
+        if (!Number.isInteger(target) || target < 0 || target >= 25) return;
+
+        if (result.type === 'invasion' || effects.includes('conquest')) {
+          showTestEffect(target, 'conquest');
+        } else if (result.type === 'attack' || effects.includes('attack')) {
+          showTestEffect(target, 'impact');
+        }
+      }
+
+      function runVisualTest(testName) {
+        const countryA = latestGameState?.countries?.find((country) => country.id === 'A');
+        const countryB = latestGameState?.countries?.find((country) => country.id === 'B');
+        const sourceA = Number.isInteger(countryA?.capitalCell) ? countryA.capitalCell : 0;
+        const sourceB = Number.isInteger(countryB?.capitalCell) ? countryB.capitalCell : 24;
+
+        if (testName === 'mobilization') {
+          spawnTroops(sourceA, 6, 'A', 4);
+          return;
+        }
+        if (testName === 'invasion') {
+          spawnTroops(sourceA, sourceB, 'A', 6);
+          showTestEffect(sourceB, 'conquest');
+          return;
+        }
+        if (testName === 'attack') {
+          spawnTroops(sourceB, 18, 'B', 5);
+          showTestEffect(18, 'impact');
+          return;
+        }
+        if (testName === 'draw') {
+          spawnTroops(sourceA, 12, 'A', 4);
+          spawnTroops(sourceB, 12, 'B', 4);
+          showTestEffect(12, 'draw');
+        }
+      }
+
+      testControls.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-test]');
+        if (button) runVisualTest(button.dataset.test);
+      });
+
+      /* Generación de Tropas */
+      function spawnTroops(sourceIndex, targetIndex, team, count = 6) {
+        const sourceCell = boardElement.children[sourceIndex];
+        const targetCell = boardElement.children[targetIndex];
+
+        if (!sourceCell || !targetCell) return;
+
+        const overlayRect = overlayElement.getBoundingClientRect();
+        const srcRect = sourceCell.getBoundingClientRect();
+        const tgtRect = targetCell.getBoundingClientRect();
+
+        const startX = srcRect.left + srcRect.width / 2 - overlayRect.left;
+        const startY = srcRect.top + srcRect.height / 2 - overlayRect.top;
+        const endX = tgtRect.left + tgtRect.width / 2 - overlayRect.left;
+        const endY = tgtRect.top + tgtRect.height / 2 - overlayRect.top;
+
+        const color = teamColors[team] || '#0284c7';
+        const troopCount = Math.max(0, Math.min(100, Math.floor(Number(count) || 0)));
+
+        for (let i = 0; i < troopCount; i++) {
+          setTimeout(() => {
+            activeParticles.push({
+              startX, startY, endX, endY,
+              color, progress: 0,
+              speed: 0.016 + Math.random() * 0.006,
+              offset: (Math.random() - 0.5) * 10,
+              radius: 3.5 + Math.random() * 1.5
+            });
+          }, i * 90);
+        }
+      }
+
+      /* Animación Canvas */
+      function animateCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (let i = activeParticles.length - 1; i >= 0; i--) {
+          const p = activeParticles[i];
+          p.progress += p.speed;
+
+          if (p.progress >= 1) {
+            activeParticles.splice(i, 1);
+            continue;
+          }
+
+          const currX = p.startX + (p.endX - p.startX) * p.progress + Math.sin(p.progress * Math.PI) * p.offset;
+          const currY = p.startY + (p.endY - p.startY) * p.progress;
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(currX, currY, p.radius, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.shadowColor = p.color;
+          ctx.shadowBlur = 8;
+          ctx.fill();
+          ctx.restore();
+        }
+
+        requestAnimationFrame(animateCanvas);
+      }
+      requestAnimationFrame(animateCanvas);
+
+      function renderLeaders(countries, leadersByCountry) {
+        leadersElement.replaceChildren();
+        countries.forEach((country) => {
+          const panel = document.createElement('article');
+          panel.className = 'leader-panel';
+          const teamColor = teamColors[country.id] || '#94a3b8';
+          panel.style.setProperty('--team', teamColor);
+
+          const title = document.createElement('h2');
+          title.className = 'leader-title';
+          title.innerHTML = `<span>COMANDANCIA · ${country.name}</span> <i class="fa-solid fa-shield-halved"></i>`;
+
+          const list = document.createElement('ol');
+          list.className = 'leader-list';
+
+          const leaders = leadersByCountry[country.id] || [];
+          if (!leaders.length) {
+            const empty = document.createElement('li');
+            empty.className = 'empty';
+            empty.textContent = 'Sin oficiales asignados';
+            list.append(empty);
+          } else {
+            leaders.slice(0, 3).forEach((leader, idx) => {
+              const item = document.createElement('li');
+              item.className = 'leader';
+
+              const rankInfo = militaryRanks[idx] || militaryRanks[2];
+
+              const badge = document.createElement('span');
+              badge.className = 'leader-badge';
+              badge.textContent = rankInfo.icon;
+
+              const info = document.createElement('span');
+              info.className = 'leader-info';
+
+              const rank = document.createElement('span');
+              rank.className = 'leader-rank';
+              rank.textContent = rankInfo.title;
+
+              const name = document.createElement('span');
+              name.className = 'leader-name';
+              name.textContent = leader.username || leader.name || '@oficial';
+
+              info.append(rank, name);
+
+              const score = document.createElement('span');
+              score.className = 'leader-score';
+              score.textContent = String(leader.score || leader.points || 0);
+
+              item.append(badge, info, score);
+              list.append(item);
+            });
+          }
+
+          panel.append(title, list);
+          leadersElement.append(panel);
+        });
+      }
+
+      function renderState(state) {
+        if (!state || !Array.isArray(state.countries) || !Array.isArray(state.board)
+          || !state.leaders || typeof state.leaders !== 'object') {
+          throw new Error('Estado inválido recibido.');
+        }
+        latestGameState = state;
+        renderCountries(state.countries);
+        renderBoard(state.board);
+        renderLeaders(state.countries, state.leaders);
+      }
+
+      // Conexión SSE
+      const stream = new EventSource('/api/game-state/stream');
+      stream.addEventListener('open', () => setConnection('connected', 'En Vivo'));
+      stream.addEventListener('snapshot', ({ data }) => {
+        try {
+          renderState(JSON.parse(data));
+          setConnection('connected', 'En Vivo');
+        } catch (error) {
+          setConnection('disconnected', 'Error Estado');
+        }
+      });
+      stream.addEventListener('update', ({ data }) => {
+        try {
+          const update = JSON.parse(data);
+          renderState(update.state);
+          playResult(update.result, update.state);
+          setConnection('connected', 'En Vivo');
+        } catch (error) {
+          setConnection('disconnected', 'Error Estado');
+        }
+      });
+      stream.addEventListener('error', () => setConnection('disconnected', 'Reconectando'));
+    </script>
+  </body>
+</html>

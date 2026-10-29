@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Centro de batalla | Backend</title>
+    <style>
+      :root { color-scheme: dark; font-family: "Segoe UI", sans-serif; background: #101311; color: #e6ece8; }
+      * { box-sizing: border-box; }
+      body { max-width: 1100px; margin: auto; padding: 28px 18px; }
+      header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+      h1 { margin: 0; font-size: 1.6rem; }
+      .status { color: #a6b1aa; }
+      .status strong { color: #f0c674; }
+      .status.connected strong { color: #43d6a5; }
+      .status.disconnected strong { color: #ff7777; }
+      .status.finalized strong { color: #a6b1aa; }
+      button, input { font: inherit; }
+      button { color: #e6ece8; background: #24352e; border: 1px solid #3b5146; border-radius: 6px; padding: 9px 13px; cursor: pointer; }
+      button:hover { background: #2e463a; }
+      .feed { margin-top: 20px; border: 1px solid #2a332e; border-radius: 8px; overflow: hidden; }
+      .event { padding: 13px 15px; border-bottom: 1px solid #2a332e; }
+      .event:last-child { border-bottom: 0; }
+      .meta { display: flex; flex-wrap: wrap; gap: 8px; color: #9eaaa2; font-size: .85rem; }
+      .type { color: #43b99a; font-weight: 700; }
+      .content { margin-top: 5px; overflow-wrap: anywhere; }
+      .empty { color: #9eaaa2; padding: 18px; }
+      #error { color: #ff9191; margin-top: 8px; }
+      dialog { width: min(620px, calc(100vw - 28px)); max-height: 90vh; color: #e6ece8; background: #151b17; border: 1px solid #3b5146; border-radius: 10px; padding: 20px; }
+      dialog::backdrop { background: #000a; }
+      dialog h2 { margin: 0 0 16px; }
+      .config-field { display: grid; gap: 7px; margin-bottom: 16px; }
+      .config-field input { color: inherit; background: #101311; border: 1px solid #3b5146; border-radius: 5px; padding: 9px; }
+      .config-hint { color: #a6b1aa; font-size: .9rem; margin: 0 0 10px; }
+      #configEvents { display: grid; gap: 7px; max-height: 52vh; overflow-y: auto; border: 1px solid #2a332e; border-radius: 6px; padding: 10px; }
+      .config-event { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; overflow-wrap: anywhere; }
+      .config-event-name { display: flex; align-items: center; gap: 8px; }
+      .config-listening { color: #a6b1aa; font-size: .85rem; white-space: nowrap; }
+      .config-listening input { accent-color: #43d6a5; }
+      .config-ignore { color: #e6ece8; font-size: .85rem; white-space: nowrap; }
+      .config-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+      .main-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+      .main-nav button[aria-current="page"] { color: #101311; background: #43d6a5; border-color: #43d6a5; }
+      .page { margin-top: 16px; }
+      .page[hidden] { display: none; }
+      .panel { border: 1px solid #2a332e; border-radius: 8px; padding: 16px; }
+      .panel h2 { margin: 0 0 12px; font-size: 1.15rem; }
+      .panel h3 { margin: 18px 0 8px; font-size: 1rem; }
+      #leaderStatus { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 12px 0 16px; }
+      .leader-group { border: 1px solid #2a332e; border-radius: 6px; padding: 10px; }
+      .leader-group h3 { margin: 0 0 8px; }
+      .leader-group ol { margin: 0; padding-left: 22px; color: #a6b1aa; }
+      .rules-list { display: grid; gap: 9px; padding-left: 20px; color: #c4cec7; }
+      .tactical-form { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+      .tactical-form label { display: grid; gap: 5px; color: #a6b1aa; }
+      .tactical-form label[hidden] { display: none; }
+      .tactical-form input, .tactical-form select { min-height: 38px; color: #e6ece8; background: #101311; border: 1px solid #3b5146; border-radius: 5px; padding: 7px; }
+      .tactical-form button:disabled { cursor: wait; opacity: .65; }
+      #gameActionMessage { min-height: 1.4em; color: #a6b1aa; margin-top: 10px; }
+      .game-panel { margin-top: 22px; border: 1px solid #2a332e; border-radius: 8px; padding: 16px; }
+      .game-panel h2 { margin: 0 0 12px; font-size: 1.15rem; }
+      #countryStatus { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 12px; color: #a6b1aa; }
+      .country-status { display: flex; align-items: center; gap: 7px; }
+      .country-color { width: 10px; height: 10px; border-radius: 50%; background: var(--team-color); }
+      .campaign { display: grid; grid-template-columns: minmax(170px, .7fr) 2fr; gap: 12px; margin: 14px 0; padding: 12px; border: 1px solid #3b5146; border-radius: 8px; background: linear-gradient(120deg, #1a2c23, #171d19); }
+      .campaign-score { display: grid; gap: 5px; align-content: center; }
+      .campaign-score strong { color: #f0c674; font-size: 1.2rem; }
+      .campaign-progress { height: 8px; overflow: hidden; border-radius: 99px; background: #101311; }
+      .campaign-progress span { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #43d6a5, #f0c674); transition: width .3s ease; }
+      .campaign-badges { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+      .campaign-badge { padding: 6px 9px; border: 1px solid #354039; border-radius: 99px; color: #829087; font-size: .82rem; }
+      .campaign-badge.earned { color: #f0c674; border-color: #9c793a; background: #342b19; }
+      .game-map { position: relative; overflow: hidden; border: 1px solid #263d39; border-radius: 14px; padding: clamp(8px, 2vw, 22px); background: radial-gradient(ellipse at 50% 45%, #19312e 0, #12221f 58%, #101916 100%); }
+      #gameBoard { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(8px, 2vw, 22px); }
+      .game-cell { position: relative; display: flex; width: 100%; aspect-ratio: 1; min-height: 0; flex-direction: column; align-items: center; justify-content: center; gap: 2px; overflow: hidden; border: 2px solid #52645d; border-radius: 50%; color: #e6ece8; background: radial-gradient(circle at 35% 25%, #37463f, #1d2924 72%); box-shadow: inset 0 0 0 4px #111a17, 0 5px 12px #0006; transition: background .2s, border-color .2s, box-shadow .2s, transform .2s; cursor: pointer; }
+      .game-cell:hover { transform: translateY(-2px); }
+      .game-cell:focus-visible { outline: 2px solid #f0c674; outline-offset: 3px; }
+      .game-cell.selected-origin { box-shadow: 0 0 0 3px #f0c674, 0 0 22px #f0c67499; }
+      .game-cell.selected-target { outline: 2px dashed #fff; outline-offset: 3px; }
+      .game-cell[data-owner="A"] { border-color: #55b4ff; background: radial-gradient(circle at 35% 25%, #2876ad, #12304a 72%); box-shadow: inset 0 0 0 4px #102536, 0 0 18px #42a5f544; }
+      .game-cell[data-owner="B"] { border-color: #ff76df; background: radial-gradient(circle at 35% 25%, #a6388f, #401d3a 72%); box-shadow: inset 0 0 0 4px #30152c, 0 0 18px #f062d544; }
+      .game-cell-index { position: absolute; top: 15%; color: #d2ded7; font-size: clamp(.55rem, 1.5vw, .72rem); opacity: .8; }
+      .troop-count { font-size: clamp(.8rem, 2.4vw, 1.25rem); font-weight: 800; line-height: 1; text-shadow: 0 1px 5px #0008; }
+      .game-cell[data-owner=""] .troop-count { color: #96a39c; font-weight: 600; }
+      .troop-dots { display: flex; justify-content: center; gap: 3px; min-height: 7px; }
+      .troop-dot { width: clamp(4px, 1vw, 7px); height: clamp(4px, 1vw, 7px); border-radius: 50%; background: var(--team-color); box-shadow: 0 0 5px var(--team-color); }
+      .movement-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 2; }
+      .movement-route { fill: none; stroke: var(--team-color); stroke-width: 4; stroke-dasharray: 3 8; stroke-linecap: round; opacity: .95; filter: drop-shadow(0 0 5px var(--team-color)); }
+      .movement-troop-dot { position: absolute; z-index: 4; width: 16px; height: 16px; border: 3px solid #fff; border-radius: 50%; background: var(--team-color); box-shadow: 0 0 16px 4px var(--team-color); pointer-events: none; transform: translate(-50%, -50%); }
+      .game-cell.impact { animation: cell-impact .42s ease-out; }
+      .game-cell.conquest { animation: cell-conquest .8s ease-out; }
+      .game-cell.fortified { animation: cell-fortified 1s ease-in-out; }
+      @keyframes cell-impact { 50% { box-shadow: 0 0 18px 5px #fff; transform: scale(1.04); } }
+      @keyframes cell-conquest { 50% { box-shadow: 0 0 22px 7px var(--team-color); transform: scale(1.07); } }
+      @keyframes cell-fortified { 50% { box-shadow: 0 0 20px 6px var(--team-color); } }
+      @media (max-width: 600px) { .game-cell { border-width: 1px; box-shadow: inset 0 0 0 2px #111a17, 0 3px 8px #0006; } .game-cell[data-owner="A"] { box-shadow: inset 0 0 0 2px #102536, 0 0 10px #42a5f544; } .game-cell[data-owner="B"] { box-shadow: inset 0 0 0 2px #30152c, 0 0 10px #f062d544; } .troop-dots { gap: 2px; } .movement-troop-dot { width: 12px; height: 12px; } .campaign { grid-template-columns: 1fr; } }
+      @media (max-width: 600px) { body { padding: 18px 12px; } }
+      @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+      :root { color-scheme: dark; font-family: "Segoe UI", sans-serif; background: #0b0f14; color: #e7edf5; }
+      body { max-width: 1180px; padding: 24px clamp(14px, 3vw, 36px); }
+      .app-header { gap: 12px 18px; padding: 20px; border: 1px solid #273442; border-radius: 14px; background: #111821; }
+      .brand { flex: 1 1 280px; min-width: 0; }
+      .eyebrow { margin: 0 0 6px; color: #67d5b0; font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+      .app-header h1 { font-size: clamp(1.35rem, 3vw, 1.8rem); }
+      .header-description { margin: 7px 0 0; color: #93a2b3; font-size: .92rem; }
+      .overlay-link { padding: 9px 12px; border: 1px solid #334455; border-radius: 8px; color: #dce8f2; text-decoration: none; white-space: nowrap; }
+      .overlay-link:hover, .overlay-link:focus-visible { border-color: #67d5b0; color: #67d5b0; outline: none; }
+      .status { display: inline-flex; align-items: center; gap: 8px; padding: 8px 11px; border: 1px solid #273442; border-radius: 999px; background: #0d131a; }
+      .status::before { width: 8px; height: 8px; border-radius: 50%; background: #e9b65b; content: ""; }
+      .status.connected::before { background: #67d5b0; box-shadow: 0 0 8px #67d58866; }
+      .status.disconnected::before, .status.failed::before { background: #ee7c83; }
+      .status strong, .status.connected strong { color: #dce8f2; }
+      .status.connected strong { color: #67d5b0; }
+      .main-nav { position: sticky; top: 8px; z-index: 5; gap: 5px; margin-top: 14px; padding: 6px; border: 1px solid #273442; border-radius: 11px; background: #111821ee; backdrop-filter: blur(12px); }
+      .main-nav button { flex: 1 1 auto; min-height: 40px; padding: 9px 12px; border-color: transparent; border-radius: 7px; color: #9eacba; background: transparent; }
+      .main-nav button:hover { color: #e7edf5; background: #1b2733; }
+      .main-nav button[aria-current="page"] { color: #07140f; border-color: #67d5b0; background: #67d5b0; font-weight: 700; }
+      .page { margin-top: 14px; }
+      .panel, .game-panel { border-color: #273442; border-radius: 12px; background: #111821; box-shadow: none; }
+      .panel { padding: clamp(16px, 2.5vw, 24px); }
+      .panel h2, .game-panel h2 { margin-bottom: 14px; font-size: 1.08rem; }
+      .config-hint, .status { color: #93a2b3; }
+      .config-field input, .tactical-form input, .tactical-form select { min-height: 42px; border-color: #334455; border-radius: 8px; background: #0d131a; }
+      .config-field input:focus, .tactical-form input:focus, .tactical-form select:focus { border-color: #67d5b0; outline: 2px solid #67d5b033; }
+      button { border-color: #334455; border-radius: 8px; background: #1b2733; }
+      button:hover { background: #253444; }
+      .feed, #configEvents, .leader-group { border-color: #273442; border-radius: 10px; }
+      .event { padding: 14px 16px; }
+      .type { color: #67d5b0; }
+      .notice { margin-top: 10px; color: #93a2b3; }
+      .notice:empty { display: none; }
+      #error.notice.error { color: #ee9298; }
+      #error.notice.success { color: #67d5b0; }
+      .game-panel { padding: 16px 0 0; }
+      @media (max-width: 680px) {
+        body { padding: 14px 10px; }
+        .app-header { padding: 16px; }
+        .main-nav { position: static; overflow-x: auto; }
+        .main-nav button { flex: 0 0 auto; }
+        .status { font-size: .82rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <p class="eyebrow">TikTok Live · Administración</p>
+        <h1>Centro de batalla</h1>
+        <p class="header-description">Estado del juego, conexión en vivo y controles de la partida.</p>
+      </div>
+      <a class="overlay-link" href="/" target="_blank" rel="noopener">Abrir overlay ↗</a>
+      <div id="status" class="status">Conectando con monitor…</div>
+    </header>
+    <div id="error" class="notice" role="status" aria-live="polite"></div>
+    <nav class="main-nav" aria-label="Secciones del backend">
+      <button type="button" data-page="monitorConfigPage" aria-current="page">Configuración del monitor</button>
+      <button type="button" data-page="eventLogPage">Eventos del log</button>
+      <button type="button" data-page="gameStatePage">Estado de memoria</button>
+      <button type="button" data-page="warRulesPage">Reglamento de guerra</button>
+    </nav>
+
+    <section id="monitorConfigPage" class="page panel" aria-labelledby="configTitle">
+      <h2 id="configTitle">Configuración del monitor</h2>
+      <form id="configForm">
+        <label class="config-field" for="tiktokUsername">
+          Usuario de TikTok
+          <input id="tiktokUsername" name="username" type="text" autocomplete="off" placeholder="@usuario" required>
+        </label>
+        <p class="config-hint">Los tipos que escucha el monitor aparecen primero y marcados. Marca “Ignorar” para ocultarlos en el webserver.</p>
+        <div id="configEvents" aria-label="Tipos de eventos"></div>
+        <div class="config-actions">
+          <button type="submit">Guardar y conectar</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="eventLogPage" class="page" hidden aria-labelledby="eventLogTitle">
+      <div class="panel">
+        <h2 id="eventLogTitle">Eventos del log</h2>
+        <main id="feed" class="feed" aria-live="polite">
+          <div class="empty">Esperando eventos…</div>
+        </main>
+      </div>
+    </section>
+
+    <section id="gameStatePage" class="page" hidden>
+      <div class="panel">
+        <h2 id="gameTitle">Estado de memoria</h2>
+        <p class="config-hint">Estado actual de países, moral, puntos y ocupación de la grilla.</p>
+        <p id="liveTeamStatus" class="config-hint">TikTok asigna automáticamente a cada espectador al equipo con menos participantes.</p>
+        <div id="countryStatus" aria-live="polite"></div>
+        <div id="leaderStatus" aria-label="Top tres de miembros por país"></div>
+        <section class="campaign" aria-label="Progreso de campaña de esta sesión">
+          <div class="campaign-score">
+            <strong id="campaignLevel">Nivel 1 · 0 XP</strong>
+            <span id="campaignNextLevel" class="config-hint">100 XP para el siguiente nivel</span>
+            <div class="campaign-progress" role="progressbar" aria-label="Progreso al siguiente nivel" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="campaignProgress"></span></div>
+          </div>
+          <div id="campaignBadges" class="campaign-badges" aria-label="Logros de campaña"></div>
+        </section>
+        <p id="boardHint" class="config-hint">Elige país y acción. Para movilizar, selecciona una casilla propia como origen y después el destino.</p>
+        <div class="game-map">
+          <div id="gameBoard" role="grid" aria-label="Tablero de guerra de 25 casillas"></div>
+          <svg id="movementLayer" class="movement-layer" aria-hidden="true"></svg>
+        </div>
+        <section class="game-panel" aria-labelledby="commandTitle">
+          <h2 id="commandTitle">Centro de mando</h2>
+          <form id="tacticalForm" class="tactical-form">
+            <input id="actionCountry" name="countryId" type="hidden" value="A">
+            <label for="actionCell">Destino (0–24)
+              <input id="actionCell" name="cellIndex" type="number" min="0" max="24" value="0" required>
+            </label>
+            <label id="actionOriginLabel" for="actionOrigin" hidden>Origen (0–24)
+              <input id="actionOrigin" name="fromCellIndex" type="number" min="0" max="24" value="">
+            </label>
+            <label for="actionType">Acción
+              <select id="actionType" name="type">
+                <option value="donation">Aportar tropas</option>
+                <option value="interaction">Interacción</option>
+                <option value="move">Invasión / refuerzo</option>
+              </select>
+            </label>
+            <label for="actionTroops">Tropas
+              <input id="actionTroops" name="troops" type="number" min="1" max="100" value="1" required>
+            </label>
+            <button type="submit">Enviar tropas</button>
+          </form>
+          <div id="gameActionMessage" role="status" aria-live="polite">Selecciona una casilla del mapa o escribe sus números.</div>
+        </section>
+      </div>
+    </section>
+
+    <section id="warRulesPage" class="page" hidden>
+      <div class="panel">
+        <h2>Reglamento de guerra táctica</h2>
+        <ol class="rules-list">
+          <li><strong>Capitales:</strong> cada país recibe una casilla aleatoria distinta, fortificada con 100 tropas al iniciar.</li>
+          <li><strong>Avance del chat:</strong> cada usuario queda asignado automáticamente al equipo con menos participantes. Sus comentarios avanzan una vez, cada regalo cuenta según su combo y cada 10 likes acumulados generan un avance.</li>
+          <li><strong>General táctico:</strong> la IA mueve 3 tropas desde una casilla propia con reservas por la ruta Manhattan más corta hacia la capital rival; 2 se pierden por el paso y 1 llega.</li>
+          <li><strong>Refuerzo:</strong> donaciones e interacciones suman tropas hasta 100; una casilla llena redirige al vecino ortogonal más débil.</li>
+          <li><strong>Ataque hostil:</strong> una donación reduce la defensa rival; una interacción no ataca.</li>
+          <li><strong>Invasión y refuerzo:</strong> en el centro de mando, selecciona una casilla propia de origen y un destino propio, neutral o enemigo. El desgaste resta 2 tropas por cada paso ortogonal.</li>
+          <li><strong>Conquista:</strong> si las tropas que llegan superan la defensa, la casilla cambia de bando con las supervivientes.</li>
+          <li><strong>Reclutamiento:</strong> cada segundo, las casillas propias con moral de 70 o más regeneran 3 tropas, hasta 100.</li>
+        </ol>
+      </div>
+    </section>
+
+    <script>
+      const feed = document.querySelector('#feed');
+      const status = document.querySelector('#status');
+      const error = document.querySelector('#error');
+      const configForm = document.querySelector('#configForm');
+      const tiktokUsername = document.querySelector('#tiktokUsername');
+      const configEvents = document.querySelector('#configEvents');
+      const gameBoard = document.querySelector('#gameBoard');
+      const countryStatus = document.querySelector('#countryStatus');
+      const liveTeamStatus = document.querySelector('#liveTeamStatus');
+      const leaderStatus = document.querySelector('#leaderStatus');
+      const gameActionMessage = document.querySelector('#gameActionMessage');
+      const actionType = document.querySelector('#actionType');
+      const actionOriginLabel = document.querySelector('#actionOriginLabel');
+      const actionOrigin = document.querySelector('#actionOrigin');
+      const actionCell = document.querySelector('#actionCell');
+      const actionCountry = document.querySelector('#actionCountry');
+      const actionTroops = document.querySelector('#actionTroops');
+      const boardHint = document.querySelector('#boardHint');
+      const movementLayer = document.querySelector('#movementLayer');
+      const campaignLevel = document.querySelector('#campaignLevel');
+      const campaignNextLevel = document.querySelector('#campaignNextLevel');
+      const campaignProgress = document.querySelector('#campaignProgress');
+      const campaignBadges = document.querySelector('#campaignBadges');
+      const maxVisibleEvents = 300;
+      const campaignStats = { xp: 0, invasions: 0, reinforcements: 0, mobilizations: 0 };
+      let latestGameState = null;
+      let movementAnimationTimer = null;
+
+      actionType.addEventListener('change', () => {
+        actionOriginLabel.hidden = actionType.value !== 'move';
+        actionOrigin.value = '';
+        if (actionType.value === 'move') actionCell.value = '';
+        actionTroops.max = '100';
+        boardHint.textContent = actionType.value === 'move'
+          ? 'Selecciona primero una casilla propia como origen y después el destino. La ruta y el desgaste se mostrarán al enviar.'
+          : 'Selecciona una casilla del mapa para fijar el destino de tu acción.';
+        updateCellSelection();
+      });
+      [actionCountry, actionOrigin, actionCell].forEach((input) => {
+        input.addEventListener('change', updateCellSelection);
+      });
+      function updateCellSelection() {
+        gameBoard.querySelectorAll('.game-cell').forEach((tile) => {
+          tile.classList.toggle('selected-origin', tile.dataset.cellIndex === actionOrigin.value && actionOrigin.value !== '');
+          tile.classList.toggle('selected-target', tile.dataset.cellIndex === actionCell.value);
+        });
+      }
+
+      gameBoard.addEventListener('click', (event) => {
+        const tile = event.target.closest('.game-cell');
+        if (!tile) return;
+        const index = Number(tile.dataset.cellIndex);
+        if (actionType.value === 'move' && (actionOrigin.value === '' || Number(actionOrigin.value) === index)) {
+          if (tile.dataset.owner !== actionCountry.value) {
+            gameActionMessage.textContent = 'El origen debe ser una casilla de tu país.';
+            return;
+          }
+          actionOrigin.value = String(index);
+          actionCell.value = '';
+          actionTroops.max = tile.dataset.points;
+          if (Number(actionTroops.value) > Number(tile.dataset.points)) actionTroops.value = tile.dataset.points;
+          gameActionMessage.textContent = `Origen ${index} seleccionado (${tile.dataset.points} tropas disponibles); ahora elige el destino.`;
+        } else {
+          actionCell.value = String(index);
+          gameActionMessage.textContent = `Destino ${index} seleccionado.`;
+        }
+        updateCellSelection();
+      });
+
+      gameBoard.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const tile = event.target.closest('.game-cell');
+        if (!tile) return;
+        event.preventDefault();
+        tile.click();
+      });
+
+      function renderCampaign() {
+        const level = Math.floor(campaignStats.xp / 100) + 1;
+        const progress = campaignStats.xp % 100;
+        campaignLevel.textContent = `Nivel ${level} · ${campaignStats.xp} XP`;
+        campaignNextLevel.textContent = `${100 - progress} XP para el siguiente nivel · ${campaignStats.invasions} conquistas · ${campaignStats.reinforcements} refuerzos`;
+        campaignProgress.style.width = `${progress}%`;
+        campaignProgress.parentElement.setAttribute('aria-valuenow', String(progress));
+        const badges = [
+          ['first-move', 'Primera movilización', campaignStats.mobilizations > 0],
+          ['first-invasion', 'Primer campo conquistado', campaignStats.invasions > 0],
+          ['first-reinforcement', 'Primer refuerzo', campaignStats.reinforcements > 0],
+        ];
+        campaignBadges.replaceChildren();
+        badges.forEach(([, label, earned]) => {
+          const badge = document.createElement('span');
+          badge.className = `campaign-badge${earned ? ' earned' : ''}`;
+          badge.textContent = `${earned ? '★' : '☆'} ${label}`;
+          campaignBadges.append(badge);
+        });
+      }
+      renderCampaign();
+
+      async function loadMonitorConfiguration() {
+        try {
+          const response = await fetch('/api/config');
+          const configuration = await response.json();
+          if (!response.ok) throw new Error(configuration.message || 'No se pudo cargar la configuración.');
+          tiktokUsername.value = configuration.username || '';
+          configEvents.replaceChildren();
+          const ignoredEvents = new Set(configuration.ignoredEvents);
+          const sortedEvents = [...configuration.events].sort((first, second) => Number(second.enabled) - Number(first.enabled));
+          sortedEvents.forEach(({ name, label, enabled }) => {
+            const option = document.createElement('label');
+            option.className = 'config-event';
+            const eventName = document.createElement('span');
+            eventName.className = 'config-event-name';
+            const eventLabel = document.createElement('span');
+            eventLabel.textContent = label || name;
+            eventName.append(eventLabel);
+
+            const listeningStatus = document.createElement('span');
+            listeningStatus.className = 'config-listening';
+            const listeningCheckbox = document.createElement('input');
+            listeningCheckbox.type = 'checkbox';
+            listeningCheckbox.checked = enabled;
+            listeningCheckbox.disabled = true;
+            listeningCheckbox.setAttribute('aria-label', enabled ? 'El monitor escucha este evento' : 'El monitor no escucha este evento');
+            listeningStatus.append(listeningCheckbox, document.createTextNode(enabled ? 'Activo' : 'No escucha'));
+            eventName.append(listeningStatus);
+
+            const ignoreLabel = document.createElement('span');
+            ignoreLabel.className = 'config-ignore';
+            const ignoreCheckbox = document.createElement('input');
+            ignoreCheckbox.type = 'checkbox';
+            ignoreCheckbox.value = name;
+            ignoreCheckbox.checked = enabled && ignoredEvents.has(name);
+            ignoreCheckbox.disabled = !enabled;
+            ignoreCheckbox.setAttribute('aria-label', `Ignorar ${label || name}`);
+            ignoreLabel.append(ignoreCheckbox, document.createTextNode(' Ignorar'));
+            option.append(eventName, ignoreLabel);
+            configEvents.append(option);
+          });
+        } catch (requestError) {
+          error.className = 'notice error';
+          error.textContent = requestError.message;
+        }
+      }
+
+      document.querySelectorAll('.main-nav button').forEach((button) => {
+        button.addEventListener('click', () => {
+          document.querySelectorAll('.main-nav button').forEach((item) => item.removeAttribute('aria-current'));
+          button.setAttribute('aria-current', 'page');
+          document.querySelectorAll('.page').forEach((page) => {
+            page.hidden = page.id !== button.dataset.page;
+          });
+          if (button.dataset.page === 'monitorConfigPage') loadMonitorConfiguration();
+        });
+      });
+      loadMonitorConfiguration();
+
+      document.querySelector('#tacticalForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        const action = {
+          countryId: formData.get('countryId'),
+          cellIndex: Number(formData.get('cellIndex')),
+          type: formData.get('type'),
+          troops: Number(formData.get('troops')),
+        };
+        if (action.type === 'move') {
+          if (formData.get('fromCellIndex') === '') {
+            gameActionMessage.textContent = 'Selecciona en el mapa una casilla propia como origen.';
+            return;
+          }
+          action.fromCellIndex = Number(formData.get('fromCellIndex'));
+          if (action.fromCellIndex === action.cellIndex) {
+            gameActionMessage.textContent = 'El origen y el destino deben ser casillas distintas.';
+            return;
+          }
+        }
+        const sendButton = event.currentTarget.querySelector('button[type="submit"]');
+        sendButton.disabled = true;
+        sendButton.textContent = 'Movilizando…';
+        try {
+          const response = await fetch('/api/game-state/actions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(action)
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.message || 'No se pudo aplicar la acción.');
+          const outcome = result.result;
+          const captured = outcome.effects.some((effect) => effect === 'claim' || effect === 'conquest');
+          const reinforced = outcome.effects.includes('reinforce');
+          const attacked = outcome.effects.includes('attack');
+          const hadEffect = outcome.effects.some((effect) => ['movement', 'claim', 'conquest', 'reinforce', 'attack'].includes(effect));
+          const earnedXp = hadEffect
+            ? (action.type === 'move' ? 10 : action.troops * 2)
+              + (captured ? 25 : 0) + (reinforced ? 10 : 0) + (attacked ? 5 : 0)
+            : 0;
+          campaignStats.xp += earnedXp;
+          if (captured) campaignStats.invasions += 1;
+          if (reinforced) campaignStats.reinforcements += 1;
+          if (action.type === 'move') campaignStats.mobilizations += 1;
+          renderCampaign();
+
+          const visualOrigin = action.type === 'move'
+            ? action.fromCellIndex
+            : findNearestOwnedCell(latestGameState, action.countryId, action.cellIndex);
+          const canAnimate = Number.isInteger(visualOrigin) && visualOrigin !== action.cellIndex
+            && !outcome.effects.includes('interaction-ignored');
+          const reward = `+${earnedXp} XP`;
+          if (canAnimate) {
+            const arrived = action.type === 'move' ? outcome.arrived : action.troops;
+            const losses = action.type === 'move' ? action.troops - outcome.arrived : 0;
+            gameActionMessage.textContent = action.type === 'move'
+              ? `Movilización ${visualOrigin} → ${action.cellIndex}: salen ${action.troops}, llegan ${arrived}${losses ? ` (−${losses} por desgaste)` : ''}. ${reward}`
+              : `Refuerzo simulado hacia la casilla ${action.cellIndex}: ${action.troops} tropas. ${reward}`;
+            animateTroopMovement(visualOrigin, action.cellIndex, action.troops, outcome.distance, action.countryId);
+          } else {
+            gameActionMessage.textContent = `Acción aplicada: ${outcome.effects.join(', ')}. ${reward}`;
+          }
+        } catch (actionError) {
+          gameActionMessage.textContent = actionError.message;
+        } finally {
+          sendButton.disabled = false;
+          sendButton.textContent = 'Enviar tropas';
+        }
+      });
+
+      function findNearestOwnedCell(gameState, countryId, targetIndex) {
+        if (!gameState) return null;
+        const targetRow = Math.floor(targetIndex / 5);
+        const targetColumn = targetIndex % 5;
+        const candidates = gameState.board
+          .filter((cell) => cell.owner === countryId && cell.index !== targetIndex && cell.points > 0)
+          .map((cell) => ({
+            index: cell.index,
+            distance: Math.abs(Math.floor(cell.index / 5) - targetRow) + Math.abs((cell.index % 5) - targetColumn),
+          }))
+          .sort((first, second) => first.distance - second.distance || first.index - second.index);
+        return candidates.length ? candidates[0].index : null;
+      }
+
+      function animateTroopMovement(fromIndex, toIndex, troopCount, distance, countryId) {
+        const map = document.querySelector('.game-map');
+        const mapRect = map.getBoundingClientRect();
+        const cellCenter = (index) => {
+          const cell = gameBoard.querySelector(`[data-cell-index="${index}"]`);
+          if (!cell) return null;
+          const rect = cell.getBoundingClientRect();
+          return {
+            x: rect.left - mapRect.left + rect.width / 2,
+            y: rect.top - mapRect.top + rect.height / 2,
+          };
+        };
+        const start = cellCenter(fromIndex);
+        const end = cellCenter(toIndex);
+        if (!start || !end) return;
+
+        window.clearTimeout(movementAnimationTimer);
+        map.querySelectorAll('.movement-troop-dot').forEach((unit) => unit.remove());
+        const route = [start];
+        let row = Math.floor(fromIndex / 5);
+        let column = fromIndex % 5;
+        const targetRow = Math.floor(toIndex / 5);
+        const targetColumn = toIndex % 5;
+        while (row !== targetRow) {
+          row += Math.sign(targetRow - row);
+          route.push(cellCenter(row * 5 + column));
+        }
+        while (column !== targetColumn) {
+          column += Math.sign(targetColumn - column);
+          route.push(cellCenter(row * 5 + column));
+        }
+        movementLayer.replaceChildren();
+        movementLayer.setAttribute('viewBox', `0 0 ${mapRect.width} ${mapRect.height}`);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        line.setAttribute('class', 'movement-route');
+        line.style.setProperty('--team-color', countryId === 'A' ? '#42a5f5' : '#f062d5');
+        line.setAttribute('points', route.map((point) => `${point.x},${point.y}`).join(' '));
+        movementLayer.append(line);
+
+        const keyframes = route.map((point, index) => ({
+          left: `${point.x}px`,
+          top: `${point.y}px`,
+          offset: route.length === 1 ? 1 : index / (route.length - 1),
+        }));
+        const movingTroops = Math.min(troopCount, 8);
+        const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          ? 650
+          : Math.min(3200, Math.max(1600, (distance || route.length - 1) * 700));
+        const troopUnits = Array.from({ length: movingTroops }, (_, index) => {
+          const unit = document.createElement('span');
+          unit.className = 'movement-troop-dot';
+          unit.style.setProperty('--team-color', countryId === 'A' ? '#42a5f5' : '#f062d5');
+          unit.setAttribute('aria-hidden', 'true');
+          map.append(unit);
+          unit.animate(keyframes, { duration, delay: index * 180, easing: 'linear', fill: 'forwards' });
+          return unit;
+        });
+        movementAnimationTimer = window.setTimeout(() => {
+          troopUnits.forEach((unit) => unit.remove());
+          movementLayer.replaceChildren();
+        }, duration + Math.max(0, movingTroops - 1) * 180 + 200);
+      }
+
+      function renderGameState(gameState, action) {
+        latestGameState = gameState;
+        if (gameState.activeCountryId) {
+          actionCountry.value = gameState.activeCountryId;
+          liveTeamStatus.textContent = `TikTok asigna automáticamente a cada espectador al equipo con menos participantes. Último equipo impulsado: País ${gameState.activeCountryId}.`;
+        }
+        if (gameState.winner) {
+          gameActionMessage.textContent = `Victoria del País ${gameState.winner}: capital enemiga conquistada.`;
+        }
+        const countries = new Map(gameState.countries.map((country) => [country.id, country]));
+        countryStatus.replaceChildren();
+        gameState.countries.forEach((country) => {
+          const item = document.createElement('span');
+          item.className = 'country-status';
+          item.style.setProperty('--team-color', country.id === 'A' ? '#42a5f5' : '#f062d5');
+          const marker = document.createElement('span');
+          marker.className = 'country-color';
+          const label = document.createElement('span');
+          const capital = country.capital ? ` · Capital ${country.capital}` : '';
+          const capitalCell = Number.isInteger(country.capitalCell) ? ` · Casilla capital ${country.capitalCell}` : '';
+          label.textContent = `${country.name}${capital}${capitalCell}: ${country.points} puntos · Moral ${country.morale}%`;
+          item.append(marker, label);
+          countryStatus.append(item);
+        });
+
+        leaderStatus.replaceChildren();
+        gameState.countries.forEach((country) => {
+          const group = document.createElement('div');
+          group.className = 'leader-group';
+          const heading = document.createElement('h3');
+          heading.textContent = `Top 3 · ${country.name}`;
+          group.append(heading);
+          const leaders = document.createElement('ol');
+          (gameState.leaders[country.id] || []).forEach((leader) => {
+            const item = document.createElement('li');
+            item.textContent = `${leader.rank}: ${leader.username} (${leader.score})`;
+            leaders.append(item);
+          });
+          if (!leaders.children.length) {
+            const empty = document.createElement('li');
+            empty.textContent = 'Sin miembros registrados';
+            leaders.append(empty);
+          }
+          group.append(leaders);
+          leaderStatus.append(group);
+        });
+
+        gameBoard.replaceChildren();
+        gameState.board.forEach((cell) => {
+          const tile = document.createElement('div');
+          tile.className = 'game-cell';
+          tile.setAttribute('role', 'gridcell');
+          tile.tabIndex = 0;
+          tile.dataset.cellIndex = String(cell.index);
+          tile.dataset.owner = cell.owner || '';
+          tile.dataset.points = String(cell.points);
+          tile.style.setProperty('--team-color', cell.owner === 'A' ? '#42a5f5' : cell.owner === 'B' ? '#f062d5' : '#829087');
+          const country = cell.owner && countries.get(cell.owner);
+          tile.setAttribute('aria-label', `Casilla ${cell.index}${country ? `, ${country.name}, ${cell.points} tropas` : ', neutral'}`);
+          const index = document.createElement('span');
+          index.className = 'game-cell-index';
+          index.textContent = String(cell.index);
+          tile.append(index);
+          const dots = document.createElement('span');
+          dots.className = 'troop-dots';
+          for (let troop = 0; troop < Math.min(cell.points, 4); troop += 1) {
+            const dot = document.createElement('span');
+            dot.className = 'troop-dot';
+            dot.setAttribute('aria-hidden', 'true');
+            dots.append(dot);
+          }
+          tile.append(dots);
+          const troopCount = document.createElement('span');
+          troopCount.className = 'troop-count';
+          troopCount.textContent = String(cell.points);
+          tile.append(troopCount);
+          if (action?.cells?.some((affected) => affected.index === cell.index)) {
+            if (action.effects.includes('conquest') && action.target === cell.index) tile.classList.add('conquest');
+            else if (action.effects.includes('attack') && action.target === cell.index) tile.classList.add('impact');
+          }
+          if (action?.effects.includes('fortified') && action.target === cell.index) tile.classList.add('fortified');
+          gameBoard.append(tile);
+        });
+        updateCellSelection();
+      }
+
+      const gameStateStream = new EventSource('/api/game-state/stream');
+      gameStateStream.addEventListener('snapshot', ({ data }) => {
+        try {
+          renderGameState(JSON.parse(data));
+        } catch (renderError) {
+          console.error('No se pudo leer el estado del juego.', renderError);
+        }
+      });
+      gameStateStream.addEventListener('update', ({ data }) => {
+        try {
+          const update = JSON.parse(data);
+          renderGameState(update.state, update.result);
+        } catch (renderError) {
+          console.error('No se pudo leer la actualización del juego.', renderError);
+        }
+      });
+
+      configForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const ignoredEvents = [...configEvents.querySelectorAll('.config-ignore input:checked')].map((checkbox) => checkbox.value);
+        try {
+          const response = await fetch('/api/config', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: tiktokUsername.value, ignoredEvents })
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.message || 'No se pudo guardar la configuración.');
+          error.className = 'notice success';
+          error.textContent = `Configuración guardada. Conectando con @${result.username}.`;
+        } catch (requestError) {
+          error.className = 'notice error';
+          error.textContent = requestError.message;
+        }
+      });
+
+      function addEvent(entry, prepend = true) {
+        const empty = feed.querySelector('.empty');
+        if (empty) empty.remove();
+        const row = document.createElement('article');
+        row.className = 'event';
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        const type = document.createElement('span');
+        type.className = 'type';
+        type.textContent = entry.eventLabel || entry.type || 'Evento';
+        const user = document.createElement('span');
+        user.textContent = entry.username || 'Sistema';
+        const time = document.createElement('time');
+        time.textContent = entry.time ? new Date(entry.time).toLocaleTimeString() : '';
+        meta.append(type, user, time);
+        const content = document.createElement('div');
+        content.className = 'content';
+        content.textContent = entry.content || entry.message || '';
+        row.append(meta, content);
+        if (prepend) feed.prepend(row);
+        else feed.append(row);
+        while (feed.children.length > maxVisibleEvents) feed.lastElementChild.remove();
+      }
+
+      const stream = new EventSource('/api/events');
+      stream.addEventListener('status', ({ data }) => {
+        const current = JSON.parse(data);
+        const monitorStatus = current.monitorStatus || current.status;
+        const statusLabels = {
+          connected: 'conectado',
+          connecting: 'conectando',
+          reconnecting: 'reintentando conexión',
+          disconnected: 'desconectado',
+          finalized: 'finalizado',
+          failed: 'sin conexión (3 intentos)',
+          idle: 'desconectado',
+        };
+        status.className = `status ${monitorStatus}`;
+        const statusLabel = document.createElement('strong');
+        statusLabel.textContent = statusLabels[monitorStatus] || monitorStatus;
+        status.replaceChildren(document.createTextNode('Monitor: '), statusLabel);
+        if (current.username) status.append(document.createTextNode(` · @${current.username}`));
+        status.append(document.createTextNode(` · ${current.eventTypes || 0} tipos`));
+        if (current.botActive) status.append(document.createTextNode(' · Simulación local activa'));
+        const statusError = current.monitorError || current.error || '';
+        error.className = statusError ? 'notice error' : 'notice';
+        error.textContent = statusError;
+      });
+      stream.addEventListener('snapshot', ({ data }) => {
+        feed.replaceChildren();
+        JSON.parse(data).slice(0, maxVisibleEvents).forEach((entry) => addEvent(entry, false));
+        if (!feed.children.length) {
+          const empty = document.createElement('div');
+          empty.className = 'empty';
+          empty.textContent = 'Esperando eventos…';
+          feed.append(empty);
+        }
+      });
+      stream.addEventListener('update', ({ data }) => {
+        addEvent(JSON.parse(data).entry);
+      });
+      stream.onerror = () => {
+        status.className = 'status disconnected';
+        const statusLabel = document.createElement('strong');
+        statusLabel.textContent = 'reconectando';
+        status.replaceChildren(document.createTextNode('Monitor: '), statusLabel);
+      };
+    </script>
+  </body>
+</html>

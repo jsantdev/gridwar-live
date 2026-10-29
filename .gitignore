@@ -147,3 +147,6 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Local TikTok monitor configuration
+servidor/data/monitor-config.json
